@@ -171,6 +171,7 @@ body { font-family:'DM Sans', sans-serif; background:var(--bg); color:var(--text
 .btn-group button { background:transparent; border:none; color:var(--text-mid); padding:6px 13px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; transition:all .15s; }
 .btn-group button:not(:last-child) { border-right:1px solid var(--border2); }
 .btn-group button.active { background:var(--accent); color:#fff; }
+.shortcut-active { background:var(--accent) !important; color:#fff !important; }
 .compare-toggle { display:flex; align-items:center; gap:8px; }
 .toggle-switch { position:relative; width:36px; height:20px; }
 .toggle-switch input { opacity:0; width:0; height:0; }
@@ -429,9 +430,16 @@ tbody tr:last-child td { border-bottom:none; }
 
   <div class="filter-divider"></div>
   <span class="filter-label">Date Range</span>
-  <input type="date" class="filter-input" id="date-from" style="min-width:130px" onchange="applyFilters()">
-  <span style="color:var(--text-dim);font-size:12px;">to</span>
-  <input type="date" class="filter-input" id="date-to" style="min-width:130px" onchange="applyFilters()">
+  <div class="btn-group" id="shortcut-btns">
+    <button onclick="setDateShortcut(7,this)">L7D</button>
+    <button onclick="setDateShortcut(30,this)">L30D</button>
+    <button onclick="setDateShortcut(90,this)">L90D</button>
+    <button onclick="setDateShortcut(0,this)" id="shortcut-ytd">YTD</button>
+    <button onclick="setDateShortcut(-1,this)" id="shortcut-all" class="active">All</button>
+  </div>
+  <input type="date" class="filter-input" id="date-from" style="min-width:130px" onchange="clearShortcut();applyFilters()">
+  <span style="color:var(--text-dim);font-size:12px;">→</span>
+  <input type="date" class="filter-input" id="date-to" style="min-width:130px" onchange="clearShortcut();applyFilters()">
 
   <div class="filter-divider"></div>
   <span class="filter-label">Country A</span>
@@ -471,12 +479,13 @@ tbody tr:last-child td { border-bottom:none; }
 <!-- Main -->
 <div class="main">
 
-  <div class="notice-bar">
-    <span>📌</span>
-    <div>
-      <strong>🟢 Auto-connected to your Google Sheet.</strong>
-      Dashboard loads live data on open and refreshes every 5 minutes. Embedded data is used as fallback if the sheet is unreachable.
+  <div class="notice-bar" id="notice-bar">
+    <span id="notice-icon">📌</span>
+    <div style="flex:1">
+      <span id="notice-text"><strong>🟢 Auto-connected to your Google Sheet.</strong>
+      Dashboard loads live data on open and refreshes every 5 minutes. Embedded data is used as fallback if the sheet is unreachable.</span>
     </div>
+    <span id="data-status-badge" style="font-size:11px;color:var(--text-dim);white-space:nowrap;margin-left:12px;"></span>
   </div>
 
   <!-- KPI Row -->
@@ -748,6 +757,11 @@ function getComparisonRows(rows, dateFrom, dateTo) {
 //  RENDER KPIs
 // ══════════════════════════════════════════════════════
 function renderKPIs(rowsCur, rowsCmp) {
+  if (!rowsCur || rowsCur.length === 0) {
+    document.getElementById('kpi-row').innerHTML =
+      '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-dim);">⚠ No data for selected filters. Try <strong>All</strong> date range or a different country.</div>';
+    return;
+  }
   const cur = sumAll(rowsCur);
   const cmp = rowsCmp ? sumAll(rowsCmp) : null;
 
@@ -1307,6 +1321,10 @@ function renderAll() {
   renderCountryLegend();
 
   // period label
+  // Update data row count badge
+  const badge = document.getElementById('data-status-badge');
+  if(badge && !state.gsConnected) badge.textContent = '📦 Embedded data · ' + DATA.length + ' rows';
+
   const periodTxt = df&&dt ? `${df} → ${dt}` : 'All time';
   document.getElementById('kpi-period-label').textContent = `📅 ${periodTxt} · ${state.countryA==='all'?'All Markets':C_SHORT[state.countryA]||state.countryA}`;
 }
@@ -1319,6 +1337,52 @@ function setGranularity(g, btn) {
   document.querySelectorAll('.filter-bar .btn-group button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   renderAll();
+}
+
+function setDateShortcut(days, btn) {
+  // Clear active state from all shortcut buttons
+  document.querySelectorAll('#shortcut-btns button').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  let from, to;
+
+  if (days === -1) {
+    // All time - use full data range
+    const dates = DATA.map(r=>r.date_str).filter(Boolean).sort();
+    from = dates[0];
+    to   = dates[dates.length-1];
+  } else if (days === 0) {
+    // YTD - Jan 1 of this year to today
+    from = new Date(today.getFullYear(), 0, 1).toISOString().slice(0,10);
+    to   = today.toISOString().slice(0,10);
+  } else {
+    // Last N days
+    const f = new Date(today);
+    f.setDate(f.getDate() - days + 1);
+    from = f.toISOString().slice(0,10);
+    to   = today.toISOString().slice(0,10);
+  }
+  // Clamp to actual data range
+  const allDates = DATA.map(r=>r.date_str).filter(Boolean).sort();
+  if (allDates.length) {
+    if (from < allDates[0]) from = allDates[0];
+    if (to   > allDates[allDates.length-1]) to = allDates[allDates.length-1];
+  }
+
+  document.getElementById('date-from').value = from;
+  document.getElementById('date-to').value   = to;
+  state.dateFrom = from;
+  state.dateTo   = to;
+  state.countryA = document.getElementById('sel-country-a').value;
+  state.countryB = document.getElementById('sel-country-b').value;
+  state.compare  = document.getElementById('sel-compare').value;
+  renderAll();
+}
+
+function clearShortcut() {
+  document.querySelectorAll('#shortcut-btns button').forEach(b=>b.classList.remove('active'));
 }
 
 function applyFilters() {
@@ -1405,32 +1469,86 @@ async function connectGoogleSheets() {
   }
 }
 
+function parseCSVLine(line) {
+  // Proper CSV parser - handles quoted fields with commas inside
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === ',' && !inQ) {
+      result.push(cur.trim()); cur = '';
+    } else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
 function parseCSV(csv) {
   const lines = csv.split('\n').filter(l=>l.trim());
-  if (lines.length<2) return [];
-  const headers = lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase().replace(/\s+/g,'_'));
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map(h=>h.toLowerCase().replace(/\s+/g,'_'));
+  
+  // Debug: log headers to console
+  console.log('CSV headers from sheet:', headers);
+  
   const rows = [];
-  for (let i=1;i<lines.length;i++) {
-    const vals = lines[i].split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseCSVLine(lines[i]);
     const obj  = {};
-    headers.forEach((h,j)=> obj[h]=vals[j]);
-    // Normalize
-    if (!obj.date && !obj.date_str) continue;
-    const d = new Date(obj.date||obj.date_str);
-    if (isNaN(d)) continue;
+    headers.forEach((h,j) => obj[h] = vals[j] || '');
+    
+    // Flexible date field - try multiple column names
+    const rawDate = obj.date || obj.date_str || obj.day || obj['date_(yyyy-mm-dd)'] || '';
+    if (!rawDate) continue;
+    
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) continue;
+    
     obj.date_str = d.toISOString().slice(0,10);
-    obj.year  = d.getFullYear();
-    obj.month = d.getMonth()+1;
-    obj.month_name = d.toLocaleString('default',{month:'short'});
-    // ISO week
-    const dow = d.getDay()||7;
-    const thu = new Date(d); thu.setDate(d.getDate()-dow+4);
-    const jan1 = new Date(thu.getFullYear(),0,1);
-    obj.Week = Math.ceil(((thu-jan1)/86400000+1)/7);
-    ['session_start','view_item','add_to_cart','begin_checkout','start_payment','purchase'].forEach(k=>{ obj[k]=parseFloat(obj[k])||0; });
-    if (!obj.store_country) obj.store_country='Unknown';
+    obj.year     = d.getFullYear();
+    obj.month    = d.getMonth() + 1;
+    obj.month_name = d.toLocaleString('default', {month:'short'});
+    
+    // ISO week number
+    const dow = d.getDay() || 7;
+    const thu = new Date(d); thu.setDate(d.getDate() - dow + 4);
+    const jan1 = new Date(thu.getFullYear(), 0, 1);
+    obj.Week = Math.ceil(((thu - jan1) / 86400000 + 1) / 7);
+    
+    // Flexible country field
+    if (!obj.store_country) {
+      obj.store_country = obj.country || obj.market || obj.store || 'Unknown';
+    }
+    
+    // Parse numeric fields - try flexible column name matching
+    const numMap = {
+      session_start:   ['session_start','sessions','session start','visitors'],
+      view_item:       ['view_item','view item','views','item_views','item views'],
+      add_to_cart:     ['add_to_cart','add to cart','atc','addtocart'],
+      begin_checkout:  ['begin_checkout','begin checkout','checkout','checkouts'],
+      start_payment:   ['start_payment','start payment','payment','payments'],
+      purchase:        ['purchase','purchases','orders','transactions'],
+    };
+    Object.entries(numMap).forEach(([key, aliases]) => {
+      if (obj[key] !== undefined && obj[key] !== '') {
+        obj[key] = parseFloat(String(obj[key]).replace(/,/g,'')) || 0;
+      } else {
+        for (const alias of aliases) {
+          if (obj[alias] !== undefined && obj[alias] !== '') {
+            obj[key] = parseFloat(String(obj[alias]).replace(/,/g,'')) || 0;
+            break;
+          }
+        }
+        if (obj[key] === undefined) obj[key] = 0;
+      }
+    });
+    
     rows.push(obj);
   }
+  console.log('Parsed', rows.length, 'rows from CSV. Sample:', rows[0]);
   return rows;
 }
 
@@ -1632,43 +1750,47 @@ function renderAiResult(text, usage) {
 const AUTO_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRQORXTBq0huhNmFVNSW_UtHeyfNngxxGl0jE2xmhMq5UB07i1Smmy_pbIUPsnRWgexpDMfW4-pbTKS/pub?gid=0&single=true&output=csv";
 
 async function autoConnectSheet() {
-  document.getElementById('gs-status-text').textContent = 'Loading live data…';
+  const statusEl = document.getElementById('gs-status-text');
+  const dotEl    = document.getElementById('gs-dot');
+  statusEl.textContent = 'Loading live data…';
   try {
-    const resp = await fetch(AUTO_SHEET_URL);
-    if (!resp.ok) throw new Error('HTTP '+resp.status);
+    const resp = await fetch(AUTO_SHEET_URL + '&cachebust=' + Date.now());
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const csv  = await resp.text();
+    console.log('CSV first 200 chars:', csv.slice(0,200));
     const rows = parseCSV(csv);
-    if (rows.length > 10) {
+    if (rows.length > 2) {
       DATA = rows;
       state.gsConnected = true;
-      document.getElementById('gs-dot').classList.add('connected');
-      document.getElementById('gs-status-text').textContent = '✓ Live Sheet (' + rows.length + ' rows)';
+      dotEl.classList.add('connected');
+      statusEl.textContent = '✓ Live Sheet (' + rows.length + ' rows)';
+      const badge = document.getElementById('data-status-badge');
+      if(badge) badge.textContent = '📋 ' + rows.length + ' rows loaded from Google Sheet';
       // auto-refresh every 5 min
       setInterval(async () => {
         try {
-          const r2 = await fetch(AUTO_SHEET_URL);
+          const r2 = await fetch(AUTO_SHEET_URL + '&cachebust=' + Date.now());
           const c2 = await r2.text();
           const d2 = parseCSV(c2);
-          if (d2.length > 10) { DATA = d2; renderAll(); }
-        } catch(e) {}
+          if (d2.length > 2) { DATA = d2; renderAll(); }
+        } catch(e) { console.warn('Refresh failed', e); }
       }, 5 * 60 * 1000);
-    } else throw new Error('Too few rows');
+    } else {
+      throw new Error('Parsed only ' + rows.length + ' rows — check sheet column names');
+    }
   } catch(e) {
     console.warn('Auto-connect failed, using embedded data:', e.message);
-    document.getElementById('gs-status-text').textContent = 'Connect Google Sheets';
+    dotEl.classList.remove('connected');
+    statusEl.textContent = '⚠ Using embedded data (' + e.message + ')';
+    const badge2 = document.getElementById('data-status-badge');
+    if(badge2) badge2.textContent = '📦 Using embedded data · ' + DATA.length + ' rows';
   }
 }
 
 async function init() {
   await autoConnectSheet();
-  // Set default date range from data
-  const dates = DATA.map(r=>r.date_str).sort();
-  const minDate = dates[0], maxDate = dates[dates.length-1];
-  document.getElementById('date-from').value = minDate;
-  document.getElementById('date-to').value   = maxDate;
-  state.dateFrom = minDate;
-  state.dateTo   = maxDate;
-  renderAll();
+  // Default: All time (uses full data range after sheet loads or falls back to embedded)
+  setDateShortcut(-1, document.getElementById('shortcut-all'));
 }
 
 init();
