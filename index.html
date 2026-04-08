@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- v2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -410,9 +409,9 @@ tbody tr:last-child td { border-bottom:none; }
     <button onclick="setDatePreset('1y',this)">1Y</button>
     <button onclick="setDatePreset('all',this)">All</button>
   </div>
-  <input type="date" class="filter-input" id="date-from" style="min-width:130px" onchange="clearPreset();applyFilters()">
+  <input type="date" class="filter-input" id="date-from" style="min-width:130px" onchange="applyFilters()">
   <span style="color:var(--text-dim);font-size:12px;">to</span>
-  <input type="date" class="filter-input" id="date-to" style="min-width:130px" onchange="clearPreset();applyFilters()">
+  <input type="date" class="filter-input" id="date-to" style="min-width:130px" onchange="applyFilters()">
 
   <div class="filter-divider"></div>
   <span class="filter-label">Country A</span>
@@ -452,11 +451,11 @@ tbody tr:last-child td { border-bottom:none; }
 <!-- Main -->
 <div class="main">
 
-  <div class="notice-bar" id="notice-bar">
+  <div class="notice-bar">
     <span>📌</span>
-    <div id="notice-bar-text">
-      <strong>⏳ Connecting to Google Sheet…</strong>
-      Attempting to load live data. If unavailable, embedded data (Jan 2025 – Apr 2026) will be used automatically.
+    <div>
+      <strong>🟢 Auto-connected to your Google Sheet.</strong>
+      Dashboard loads live data on open and refreshes every 5 minutes. Embedded data is used as fallback if the sheet is unreachable.
     </div>
   </div>
 
@@ -1310,33 +1309,22 @@ function applyFilters() {
   state.compare  = document.getElementById('sel-compare').value;
   renderAll();
 }
-
-function clearPreset() {
-  document.querySelectorAll('#quick-range-btns button').forEach(b=>b.classList.remove('active'));
-}
-
 function setDatePreset(preset, btn) {
-  const allDates = DATA.map(r=>r.date_str).sort();
-  const dataMax = allDates[allDates.length-1] || new Date().toISOString().slice(0,10);
-  const dataMin = allDates[0] || dataMax;
-  const ref = new Date(dataMax + 'T00:00:00');
-  let from;
-  if (preset === 'all') {
-    from = dataMin;
-  } else if (preset === '7d') {
-    ref.setDate(ref.getDate()-6); from = ref.toISOString().slice(0,10);
-  } else if (preset === '30d') {
-    ref.setDate(ref.getDate()-29); from = ref.toISOString().slice(0,10);
-  } else if (preset === '3m') {
-    ref.setMonth(ref.getMonth()-3); from = ref.toISOString().slice(0,10);
-  } else if (preset === '6m') {
-    ref.setMonth(ref.getMonth()-6); from = ref.toISOString().slice(0,10);
-  } else if (preset === '1y') {
-    ref.setFullYear(ref.getFullYear()-1); from = ref.toISOString().slice(0,10);
-  }
+  var allDates = DATA.map(function(r){return r.date_str;}).sort();
+  var dataMax = allDates[allDates.length-1] || new Date().toISOString().slice(0,10);
+  var dataMin = allDates[0] || dataMax;
+  var ref = new Date(dataMax + 'T00:00:00');
+  var from;
+  if (preset === 'all') { from = dataMin; }
+  else if (preset === '7d') { ref.setDate(ref.getDate()-6); from = ref.toISOString().slice(0,10); }
+  else if (preset === '30d') { ref.setDate(ref.getDate()-29); from = ref.toISOString().slice(0,10); }
+  else if (preset === '3m') { ref.setMonth(ref.getMonth()-3); from = ref.toISOString().slice(0,10); }
+  else if (preset === '6m') { ref.setMonth(ref.getMonth()-6); from = ref.toISOString().slice(0,10); }
+  else if (preset === '1y') { ref.setFullYear(ref.getFullYear()-1); from = ref.toISOString().slice(0,10); }
   document.getElementById('date-from').value = from;
-  document.getElementById('date-to').value   = dataMax;
-  document.querySelectorAll('#quick-range-btns button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('date-to').value = dataMax;
+  var btns = document.querySelectorAll('#quick-range-btns button');
+  for (var i=0;i<btns.length;i++) btns[i].classList.remove('active');
   if (btn) btn.classList.add('active');
   applyFilters();
 }
@@ -1667,8 +1655,6 @@ async function autoConnectSheet() {
       state.gsConnected = true;
       document.getElementById('gs-dot').classList.add('connected');
       document.getElementById('gs-status-text').textContent = '✓ Live Sheet (' + rows.length + ' rows)';
-      const nb = document.getElementById('notice-bar-text');
-      if (nb) nb.innerHTML = '<strong>🟢 Live data loaded from Google Sheet.</strong> Dashboard auto-refreshes every 5 minutes. (' + rows.length + ' rows)';
       // auto-refresh every 5 min
       setInterval(async () => {
         try {
@@ -1682,22 +1668,19 @@ async function autoConnectSheet() {
   } catch(e) {
     console.warn('Auto-connect failed, using embedded data:', e.message);
     document.getElementById('gs-status-text').textContent = 'Connect Google Sheets';
-    const nb = document.getElementById('notice-bar-text');
-    if (nb) nb.innerHTML = '<strong>🟡 Using embedded data (Jan 2025 – Apr 2026).</strong> Live sheet unavailable. Click "Connect Google Sheets" in the header to link your sheet.';
   }
 }
 
 async function init() {
   await autoConnectSheet();
-  // Set default date range from data (All time) and mark "All" preset active
+  // Set default date range from data
   const dates = DATA.map(r=>r.date_str).sort();
   const minDate = dates[0], maxDate = dates[dates.length-1];
   document.getElementById('date-from').value = minDate;
   document.getElementById('date-to').value   = maxDate;
   state.dateFrom = minDate;
   state.dateTo   = maxDate;
-  // Mark the "All" preset button as active
-  const allBtn = document.querySelector('#quick-range-btns button:last-child');
+  var allBtn = document.querySelector('#quick-range-btns button:last-child');
   if (allBtn) allBtn.classList.add('active');
   renderAll();
 }
