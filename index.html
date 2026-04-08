@@ -360,6 +360,34 @@ tbody tr:last-child td { border-bottom:none; }
 }
 .notice-bar strong { color:var(--accent); }
 </style>
+
+<script>
+// Early password gate - runs immediately so onclick works before main script loads
+(function(){
+  var PW = 'funnel2025';
+  window.checkPw = function() {
+    var val = document.getElementById('pw-input').value;
+    var err = document.getElementById('pw-error');
+    if (val === PW) {
+      document.getElementById('pw-screen').style.display = 'none';
+      // store so main script knows gate is cleared
+      sessionStorage.setItem('pw_ok','1');
+    } else {
+      err.textContent = '❌ Incorrect password. Try again.';
+      document.getElementById('pw-input').value = '';
+      document.getElementById('pw-input').focus();
+      setTimeout(function(){ err.textContent=''; }, 3000);
+    }
+  };
+  // If already authenticated this session, skip gate immediately
+  if (sessionStorage.getItem('pw_ok') === '1') {
+    document.addEventListener('DOMContentLoaded', function(){
+      var s = document.getElementById('pw-screen');
+      if(s) s.style.display = 'none';
+    });
+  }
+})();
+</script>
 </head>
 <body>
 
@@ -1421,23 +1449,10 @@ async function refreshData() {
 //  INIT
 // ══════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════
-//  PASSWORD GATE
+//  PASSWORD GATE — defined early in <head> script
 // ══════════════════════════════════════════════════════
-const DASHBOARD_PASSWORD = 'funnel2025'; // ← change this
-
-function checkPw() {
-  const val = document.getElementById('pw-input').value;
-  if (val === DASHBOARD_PASSWORD) {
-    document.getElementById('pw-screen').style.display = 'none';
-    document.getElementById('pw-input').value = '';
-  } else {
-    const err = document.getElementById('pw-error');
-    err.textContent = '❌ Incorrect password. Please try again.';
-    document.getElementById('pw-input').value = '';
-    document.getElementById('pw-input').focus();
-    setTimeout(() => err.textContent = '', 3000);
-  }
-}
+// checkPw() is defined in the early <script> in <head> so it works
+// before this large script finishes parsing. Change password there.
 
 // ══════════════════════════════════════════════════════
 //  AI ANALYSIS
