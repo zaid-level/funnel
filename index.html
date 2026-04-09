@@ -1620,13 +1620,9 @@ function renderAiResult(text, usage) {
     .replace(/^# (.+)$/gm,   '<h3>$1</h3>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>
-?)+/g, m => '<ul>'+m+'</ul>')
-    .replace(/
-
-/g, '<br><br>')
-    .replace(/
-/g, '<br>');
+    .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>'+m+'</ul>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
 
   // Highlight recommendation and warning blocks
   html = html.replace(/<h3>.*[Rr]ecommend.*<\/h3>/g, m => m.replace('<h3>','<h3>💡 '));
