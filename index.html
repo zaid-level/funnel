@@ -1489,19 +1489,16 @@ function buildAiContext() {
     const val = cur[s.key];
     const rate = i===0 ? 100 : cur[STEPS[i-1].key]?(val/cur[STEPS[i-1].key]*100).toFixed(1):0;
     return `  ${s.label}: ${fmtFull(val)} (${i===0?'100%':rate+'% of prev step'})`;
-  }).join('
-');
+  }).join('\n');
 
   // WoW change (first vs last period)
   let wowText = '';
   if (grouped.length >= 2) {
     const first = grouped[0], last = grouped[grouped.length-1];
-    wowText = 'Week-over-Week (first vs last period):
-' + STEPS.map(s=>{
+    wowText = 'Week-over-Week (first vs last period):\n' + STEPS.map(s=>{
       const c = chgPct(last[s.key], first[s.key]);
       return `  ${s.label}: ${c!==null?(parseFloat(c)>=0?'+':'')+c+'%':'n/a'}`;
-    }).join('
-');
+    }).join('\n');
   }
 
   // Country comparison if enabled
