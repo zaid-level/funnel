@@ -1450,11 +1450,13 @@ async function refreshData() {
 // ══════════════════════════════════════════════════════
 //  PASSWORD GATE
 // ══════════════════════════════════════════════════════
-const DASHBOARD_PASSWORD = 'funnel2025'; // ← change this
+const PASS_HASH = '51a5010df9ba5bbc8f881e4852b95939afcc083b5dff167c7f20c432d68b42e0';
 
-function checkPw() {
+async function checkPw() {
   const val = document.getElementById('pw-input').value;
-  if (val === DASHBOARD_PASSWORD) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(val));
+  const hash = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  if (hash === PASS_HASH) {
     document.getElementById('pw-screen').style.display = 'none';
     document.getElementById('pw-input').value = '';
   } else {
@@ -1634,7 +1636,7 @@ function renderAiResult(text, usage) {
     `<div class="ai-result">${tokens}${html}</div>`;
 }
 
-const AUTO_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRQORXTBq0huhNmFVNSW_UtHeyfNngxxGl0jE2xmhMq5UB07i1Smmy_pbIUPsnRWgexpDMfW4-pbTKS/pub?gid=0&single=true&output=csv";
+const AUTO_SHEET_URL = atob('aHR0cHM6Ly9kb2NzLmdvb2dsZS5jb20vc3ByZWFkc2hlZXRzL2QvZS8yUEFDWC0xdlJRT1JYVEJxMGh1aE5tRlZOU1dfVXRIZXlmTm5neHhHbDBqRTJ4bWhNcTVVQjA3aTFTbW15X3BiSVVQc25SV2dleHBETWZXNC1wYlRLUy9wdWI/Z2lkPTAmc2luZ2xlPXRydWUmb3V0cHV0PWNzdg==');
 
 async function autoConnectSheet() {
   document.getElementById('gs-status-text').textContent = 'Loading live data…';
